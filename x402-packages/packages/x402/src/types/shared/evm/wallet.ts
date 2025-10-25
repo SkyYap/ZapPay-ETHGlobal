@@ -22,6 +22,10 @@ import {
   avalanche,
   iotexTestnet,
   iotex,
+  mainnet,
+  sepolia,
+  arbitrum,
+  arbitrumSepolia,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
@@ -211,6 +215,14 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
+    case "mainnet":
+      return mainnet;
+    case "sepolia":
+      return sepolia;
+    case "arbitrum":
+      return arbitrum;
+    case "arbitrum-sepolia":
+      return arbitrumSepolia;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
