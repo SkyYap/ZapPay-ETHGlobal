@@ -40,13 +40,17 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392",
     usdcName: "USDC",
   },
-  "534352": {
-    usdcAddress: "0x06efdbff2a14a7c8e15944d1f4a48f9f95f663a4",
-    usdcName: "Bridged USDC",
+  "137": {
+    usdcAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+    usdcName: "USD Coin",
   },
-  "534351": {
-    usdcAddress: "0xB1933d0330F117e137cd00852A3c8E6f7254C566",
-    usdcName: "USDC Test Token",
+  "80002": {
+    usdcAddress: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+    usdcName: "USDC",
+  },
+  "3338": {
+    usdcAddress: "0xbbA60da06c2c5424f03f7434542280FCAd453d10",
+    usdcName: "USDC",
   },
 };
 

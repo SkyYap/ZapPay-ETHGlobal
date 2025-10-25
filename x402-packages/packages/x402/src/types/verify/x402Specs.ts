@@ -32,7 +32,6 @@ export const ErrorReasons = [
   "invalid_exact_svm_payload_transaction_instruction_not_spl_token_transfer_checked",
   "invalid_exact_svm_payload_transaction_instruction_not_token_2022_transfer_checked",
   "invalid_exact_svm_payload_transaction_not_a_transfer_instruction",
-  "invalid_exact_svm_payload_transaction_cannot_derive_receiver_ata",
   "invalid_exact_svm_payload_transaction_receiver_ata_not_found",
   "invalid_exact_svm_payload_transaction_sender_ata_not_found",
   "invalid_exact_svm_payload_transaction_simulation_failed",
@@ -52,7 +51,6 @@ export const ErrorReasons = [
   "unsupported_scheme",
   "unexpected_settle_error",
   "unexpected_verify_error",
-  "smart_contract_wallet_not_supported_on_scroll",
 ] as const;
 
 // Refiners

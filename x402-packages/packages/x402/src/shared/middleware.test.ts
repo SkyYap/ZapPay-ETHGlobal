@@ -344,27 +344,25 @@ describe("getDefaultAsset", () => {
     });
   });
 
-  it("should return Scroll USDC asset details", () => {
-    const result = getDefaultAsset("scroll");
-
+  it("should return Polygon Amoy USDC asset details", () => {
+    const result = getDefaultAsset("polygon-amoy");
     expect(result).toEqual({
-      address: "0x06efdbff2a14a7c8e15944d1f4a48f9f95f663a4",
+      address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
       decimals: 6,
       eip712: {
-        name: "Bridged USDC",
+        name: "USDC",
         version: "2",
       },
     });
   });
 
-  it("should return Scroll Sepolia USDC Test Tokenasset details", () => {
-    const result = getDefaultAsset("scroll-sepolia");
-
+  it("should return Polygon mainnet USDC asset details", () => {
+    const result = getDefaultAsset("polygon");
     expect(result).toEqual({
-      address: "0xB1933d0330F117e137cd00852A3c8E6f7254C566",
+      address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
       decimals: 6,
       eip712: {
-        name: "USDC Test Token",
+        name: "USD Coin",
         version: "2",
       },
     });
