@@ -34,7 +34,7 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
     return isExpectedScheme && isExpectedChain;
   });
 
-  // Filter down to USDC requirements
+  // Filter down to USDC requirements (highest priority)
   const usdcRequirements = broadlyAcceptedPaymentRequirements.filter(requirement => {
     // If the address is a USDC address, we return it.
     return requirement.asset === getUsdcChainConfigForChain(getNetworkId(requirement.network))?.usdcAddress;
@@ -44,6 +44,7 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
   if (usdcRequirements.length > 0) {
     return usdcRequirements[0];
   }
+
   // If no USDC requirements are found, return the first broadly accepted requirement.
   if (broadlyAcceptedPaymentRequirements.length > 0) {
     return broadlyAcceptedPaymentRequirements[0];

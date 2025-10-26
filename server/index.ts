@@ -7,14 +7,19 @@ import { v4 as uuidv4 } from "uuid";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { walletRiskMiddleware } from "./middleware/walletRiskMiddleware";
-import { recordSuccessfulPayment, recordFailedPayment, extractPaymentAmount, getSystemOwnerId, extractPaymentLinkFromContext, getPaymentLinkData } from "./services/transactionService";
+import { recordSuccessfulPayment, recordFailedPayment, extractPaymentDetails, getSystemOwnerId, extractPaymentLinkFromContext, getPaymentLinkData } from "./services/transactionService";
 
 config();
 
 // Configuration from environment variables
 const facilitatorUrl = process.env.FACILITATOR_URL as Resource || "https://x402.org/facilitator";
 const payTo = process.env.ADDRESS as `0x${string}`;
-const network = (process.env.NETWORK as Network) || "scroll";
+// Parse networks from .env - use base-sepolia as default
+const networksFromEnv = process.env.NETWORK?.split(',').map(n => n.trim()) || ["base-sepolia"];
+const networks: Network[] = networksFromEnv as Network[];
+// x402 middleware currently supports one network per route, so we use the first one
+// To support multiple networks, you would need to create separate endpoints for each
+const primaryNetwork = networks[0];
 const port = parseInt(process.env.PORT || "3001");
 
 // Supabase configuration
@@ -149,7 +154,7 @@ app.use("/api/pay/*", async (c, next) => {
 // This blocks high-risk wallets before they can attempt to pay
 app.use("/api/pay/*", walletRiskMiddleware);
 
-// Configure x402 payment middleware with two payment options
+// Configure x402 payment middleware
 app.use(
   paymentMiddleware(
     payTo,
@@ -157,12 +162,12 @@ app.use(
       // 24-hour session access
       "/api/pay/session": {
         price: "$1.00",
-        network,
+        network: primaryNetwork,
       },
       // One-time access/payment
       "/api/pay/onetime": {
         price: "$0.10",
-        network,
+        network: primaryNetwork,
       },
     },
     {
@@ -223,9 +228,10 @@ app.get("/api/health", (c) => {
     status: "ok",
     message: "Server is running",
     config: {
-      network,
+      network: primaryNetwork,
       payTo,
       facilitator: facilitatorUrl,
+      supportedTokens: ["USDC", "PYUSD"],
     },
   });
 });
@@ -291,16 +297,13 @@ app.post("/api/pay/session", async (c) => {
     // Record successful transaction
     try {
       const walletAddress = c.get('walletAddress') || c.req.header('x-402-address');
-      const xPayment = c.req.header('x-payment');
 
-      let amount = 1.0; // Default $1.00
-      let currency = 'USD';
-
-      if (xPayment) {
-        const paymentData = extractPaymentAmount(xPayment);
-        amount = paymentData.amount || 1.0;
-        currency = paymentData.currency || 'USD';
-      }
+      // Extract payment details including token and network
+      const paymentDetails = extractPaymentDetails(c);
+      const amount = paymentDetails.amount || 1.0;
+      const currency = paymentDetails.currency || 'USD';
+      const crypto_currency = paymentDetails.crypto_currency || 'USDC';
+      const network = paymentDetails.network;
 
       // Try to extract payment_link from referrer
       const paymentLinkHash = extractPaymentLinkFromContext(c);
@@ -327,7 +330,7 @@ app.post("/api/pay/session", async (c) => {
           amount,
           currency,
           crypto_amount: amount, // Set crypto_amount = amount
-          crypto_currency: 'USDC', // Always USDC
+          crypto_currency, // Actual token used (USDC or PYUSD)
           wallet_address: walletAddress,
           session_id: sessionId,
         });
@@ -383,7 +386,7 @@ app.post("/api/pay/session", async (c) => {
           amount: 1.0,
           currency: 'USD',
           crypto_amount: 1.0, // Set crypto_amount = amount
-          crypto_currency: 'USDC', // Always USDC
+          crypto_currency, // Actual token used (USDC or PYUSD)
           wallet_address: walletAddress,
           block_reason: error.message,
         });
@@ -419,16 +422,13 @@ app.post("/api/pay/onetime", async (c) => {
     // Record successful transaction
     try {
       const walletAddress = c.get('walletAddress') || c.req.header('x-402-address');
-      const xPayment = c.req.header('x-payment');
 
-      let amount = 0.10; // Default $0.10
-      let currency = 'USD';
-
-      if (xPayment) {
-        const paymentData = extractPaymentAmount(xPayment);
-        amount = paymentData.amount || 0.10;
-        currency = paymentData.currency || 'USD';
-      }
+      // Extract payment details including token and network
+      const paymentDetails = extractPaymentDetails(c);
+      const amount = paymentDetails.amount || 0.10;
+      const currency = paymentDetails.currency || 'USD';
+      const crypto_currency = paymentDetails.crypto_currency || 'USDC';
+      const network = paymentDetails.network;
 
       // Try to extract payment_link from referrer
       const paymentLinkHash = extractPaymentLinkFromContext(c);
@@ -455,7 +455,7 @@ app.post("/api/pay/onetime", async (c) => {
           amount,
           currency,
           crypto_amount: amount, // Set crypto_amount = amount
-          crypto_currency: 'USDC', // Always USDC
+          crypto_currency, // Actual token used (USDC or PYUSD)
           wallet_address: walletAddress,
           session_id: sessionId,
         });
@@ -510,7 +510,7 @@ app.post("/api/pay/onetime", async (c) => {
           amount: 0.10,
           currency: 'USD',
           crypto_amount: 0.10, // Set crypto_amount = amount
-          crypto_currency: 'USDC', // Always USDC
+          crypto_currency, // Actual token used (USDC or PYUSD)
           wallet_address: walletAddress,
           block_reason: error.message,
         });
@@ -1013,12 +1013,17 @@ console.log(`
 🚀 x402 Payment Template Server
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💰 Accepting payments to: ${payTo}
-🔗 Network: ${network}
+🔗 Active Network: ${primaryNetwork}
+${networks.length > 1 ? `📋 Configured Networks: ${networks.join(', ')}` : ''}
+🪙 Tokens: USDC & PYUSD
 🌐 Port: ${port}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 Payment Options:
    - 24-Hour Session: $1.00
    - One-Time Access: $0.10
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 Note: Currently using ${primaryNetwork}. To use other networks,
+   update NETWORK in .env to set your preferred primary network.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🛠️  This is a template! Customize it for your app.
 📚 Learn more: https://x402.org

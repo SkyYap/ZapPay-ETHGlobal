@@ -142,7 +142,65 @@ export async function recordBlockedPayment(params: {
 }
 
 /**
+ * Helper to extract payment details from x-payment header and context
+ */
+export function extractPaymentDetails(c: any): {
+  amount?: number;
+  currency?: string;
+  crypto_currency?: string;
+  network?: string;
+  token_address?: string;
+} {
+  try {
+    const xPayment = c.req.header('x-payment');
+    if (!xPayment) {
+      console.log('⚠️ No x-payment header found');
+      return {};
+    }
+
+    const decoded = Buffer.from(xPayment, 'base64').toString('utf-8');
+    const paymentData = JSON.parse(decoded);
+
+    console.log('💳 Payment data:', JSON.stringify(paymentData, null, 2));
+
+    // Extract amount from payment data
+    const amount = paymentData?.payload?.amount || paymentData?.amount;
+    const currency = paymentData?.payload?.currency || paymentData?.currency || 'USD';
+
+    // Extract token/asset information
+    const asset = paymentData?.payload?.asset || paymentData?.asset;
+    const network = paymentData?.payload?.network || paymentData?.network;
+
+    // Try to determine the crypto currency from the asset address
+    let crypto_currency = 'USDC'; // Default
+
+    if (asset && typeof asset === 'string') {
+      const assetLower = asset.toLowerCase();
+      // PYUSD addresses on Sepolia and Arbitrum Sepolia
+      if (assetLower === '0xcac524bca292aaade2df8a05cc58f0a65b1b3bb9' || // Sepolia PYUSD
+          assetLower === '0x637a1259c6afd7e3adf63993ca7e58bb438ab1b1') { // Arbitrum Sepolia PYUSD
+        crypto_currency = 'PYUSD';
+      }
+    }
+
+    console.log(`💰 Extracted: ${amount} ${currency}, Token: ${crypto_currency}, Network: ${network || 'unknown'}`);
+
+    return {
+      amount,
+      currency,
+      crypto_currency,
+      network,
+      token_address: asset,
+    };
+  } catch (error) {
+    console.error('❌ Failed to extract payment details:', error);
+    return {};
+  }
+}
+
+/**
  * Helper to extract payment amount from x-payment header
+ * @deprecated Use extractPaymentDetails instead
  */
 export function extractPaymentAmount(xPayment: string): { amount?: number; currency?: string } {
   try {

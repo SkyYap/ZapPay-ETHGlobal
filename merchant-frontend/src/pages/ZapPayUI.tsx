@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Wallet, 
-  CreditCard, 
-  Shield, 
+import {
+  Wallet,
+  CreditCard,
+  Shield,
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
@@ -13,9 +13,18 @@ import axios from "axios";
 import type { AxiosInstance } from "axios";
 import { withPaymentInterceptor } from "x402-axios";
 import { useWallet } from '@/contexts/WalletContext';
+import { NetworkTokenSelector, type TokenSymbol } from '@/components/NetworkTokenSelector';
+import type { SupportedChainKey } from '@/contexts/WalletContext';
 
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+
+// Network name mapping
+const NETWORK_NAMES: Record<SupportedChainKey, string> = {
+  sepolia: 'Ethereum Sepolia',
+  arbitrumSepolia: 'Arbitrum Sepolia',
+  baseSepolia: 'Base Sepolia',
+};
 
 // Base axios instance without payment interceptor
 const baseApiClient = axios.create({
@@ -111,19 +120,25 @@ export function ZapPayUI() {
   const navigate = useNavigate();
   
   // Use wallet context
-  const { 
-    isConnected: isWalletConnected, 
-    address, 
-    walletClient, 
-    error: walletError, 
-    isConnecting, 
-    connectWallet, 
-    disconnectWallet 
+  const {
+    isConnected: isWalletConnected,
+    address,
+    walletClient,
+    error: walletError,
+    isConnecting,
+    currentChain,
+    connectWallet,
+    disconnectWallet,
+    switchChain
   } = useWallet();
-  
+
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed'>('pending');
   const [paymentResult, setPaymentResult] = useState<any>(null);
-  
+
+  // Network and token selection - default to arbitrumSepolia to match backend
+  const [selectedNetwork, setSelectedNetwork] = useState<SupportedChainKey>('arbitrumSepolia');
+  const [selectedToken, setSelectedToken] = useState<TokenSymbol>('PYUSD');
+
   // Payment link data
   const [paymentLinkData, setPaymentLinkData] = useState<PaymentLink | null>(null);
   const [isLoadingPaymentLink, setIsLoadingPaymentLink] = useState(true);
@@ -164,6 +179,34 @@ export function ZapPayUI() {
   useEffect(() => {
     updateApiClient(walletClient);
   }, [walletClient]);
+
+  // Handle network selection
+  const handleNetworkSelect = async (network: SupportedChainKey) => {
+    setSelectedNetwork(network);
+    // If wallet is connected and user selects a different network, switch to it
+    if (isWalletConnected && currentChain.id !== getChainIdFromKey(network)) {
+      try {
+        await switchChain(network);
+      } catch (error) {
+        console.error('Failed to switch network:', error);
+      }
+    }
+  };
+
+  // Handle token selection
+  const handleTokenSelect = (token: TokenSymbol) => {
+    setSelectedToken(token);
+  };
+
+  // Helper to get chain ID from network key
+  const getChainIdFromKey = (key: SupportedChainKey): number => {
+    const chainIds: Record<SupportedChainKey, number> = {
+      sepolia: 11155111,
+      arbitrumSepolia: 421614,
+      baseSepolia: 84532,
+    };
+    return chainIds[key];
+  };
 
   const handlePayWithCrypto = async () => {
     if (!isWalletConnected) {
@@ -264,13 +307,20 @@ export function ZapPayUI() {
               </div>
               <h1 className="text-xl font-bold text-gray-900">ZapPay</h1>
             </div>
-            <div className="relative">
+            <div className="relative flex items-center gap-3">
               {isWalletConnected && address ? (
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg border border-gray-200">
+                <>
+                  {/* Network Badge */}
+                  <div className="flex items-center space-x-2 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
                     <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-orange-900">{currentChain.name}</span>
+                  </div>
+                  {/* Wallet Address */}
+                  <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg border border-gray-200">
+                    <Wallet className="h-4 w-4 text-gray-600" />
                     <span className="text-sm font-medium text-gray-900">{formatAddress(address)}</span>
                   </div>
+                  {/* Disconnect Button */}
                   <Button
                     onClick={disconnectWallet}
                     variant="outline"
@@ -279,10 +329,10 @@ export function ZapPayUI() {
                   >
                     Disconnect
                   </Button>
-                </div>
+                </>
               ) : (
                 <Button
-                  onClick={connectWallet}
+                  onClick={() => connectWallet(selectedNetwork)}
                   disabled={isConnecting}
                   className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white"
                 >
@@ -291,7 +341,7 @@ export function ZapPayUI() {
                 </Button>
               )}
               {walletError && (
-                <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-red-100 border border-red-300 rounded-md text-red-700 text-sm z-10">
+                <div className="absolute top-full right-0 mt-2 px-3 py-2 bg-red-100 border border-red-300 rounded-md text-red-700 text-sm z-10 max-w-xs">
                   {walletError}
                 </div>
               )}
@@ -373,24 +423,69 @@ export function ZapPayUI() {
                     {/* Amount */}
                     <div className="space-y-2">
                       <div className="text-3xl font-bold text-gray-900">
-                        ${paymentLinkData?.pricing?.toFixed(2) || '0.00'} USDC
+                        ${paymentLinkData?.pricing?.toFixed(2) || '0.00'} {selectedToken}
                       </div>
+                    </div>
+
+                    {/* Network and Token Selector */}
+                    <div className="w-full">
+                      {isWalletConnected && (
+                        <>
+                          {/* Network Mismatch Warning */}
+                          {currentChain.id !== getChainIdFromKey(selectedNetwork) && (
+                            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
+                              <p className="text-sm font-semibold text-yellow-800 flex items-center">
+                                <AlertCircle className="h-4 w-4 mr-2" />
+                                Network Mismatch
+                              </p>
+                              <p className="text-xs text-yellow-700 mt-1">
+                                Your wallet is on <strong>{currentChain.name}</strong> but you selected <strong>{NETWORK_NAMES[selectedNetwork]}</strong>.
+                                Click the network below to switch.
+                              </p>
+                            </div>
+                          )}
+                          {/* Connected Network Info */}
+                          {currentChain.id === getChainIdFromKey(selectedNetwork) && (
+                            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <p className="text-sm font-semibold text-green-800 flex items-center">
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Ready to Pay
+                              </p>
+                              <p className="text-xs text-green-700 mt-1">
+                                Connected to <strong>{currentChain.name}</strong> (Chain ID: {currentChain.id})
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      <NetworkTokenSelector
+                        selectedNetwork={selectedNetwork}
+                        selectedToken={selectedToken}
+                        onNetworkSelect={handleNetworkSelect}
+                        onTokenSelect={handleTokenSelect}
+                      />
                     </div>
 
                     {/* Payment Button */}
                     <Button
                       onClick={handlePayWithCrypto}
-                      disabled={!isWalletConnected || paymentStatus !== 'pending'}
+                      disabled={
+                        !isWalletConnected ||
+                        paymentStatus !== 'pending' ||
+                        (isWalletConnected && currentChain.id !== getChainIdFromKey(selectedNetwork))
+                      }
                       className={`w-full ${
                         paymentStatus === 'completed'
-                          ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white' 
+                          ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white'
                           : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white'
                       }`}
                     >
                       {paymentStatus === 'pending' && (
                         <>
                           <Wallet className="h-4 w-4 mr-2" />
-                          Pay with Crypto
+                          {isWalletConnected && currentChain.id !== getChainIdFromKey(selectedNetwork)
+                            ? 'Switch Network to Pay'
+                            : 'Pay with Crypto'}
                         </>
                       )}
                       {paymentStatus === 'processing' && (
@@ -406,6 +501,13 @@ export function ZapPayUI() {
                         </>
                       )}
                     </Button>
+
+                    {/* Helper text for network mismatch */}
+                    {isWalletConnected && currentChain.id !== getChainIdFromKey(selectedNetwork) && paymentStatus === 'pending' && (
+                      <p className="text-xs text-center text-yellow-600">
+                        Click on {NETWORK_NAMES[selectedNetwork]} in the network selector above to switch
+                      </p>
+                    )}
 
                     {/* Security Badge */}
                     <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
@@ -468,7 +570,7 @@ export function ZapPayUI() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Amount</span>
-                    <span className="font-medium">${paymentLinkData?.pricing?.toFixed(2) || '0.00'} USDC</span>
+                    <span className="font-medium">${paymentLinkData?.pricing?.toFixed(2) || '0.00'} {selectedToken}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 text-left">Network Fee</span>
@@ -477,7 +579,7 @@ export function ZapPayUI() {
                   <div className="border-t pt-3">
                     <div className="flex justify-between items-center">
                       <span className="text-gray-900 font-semibold">Total</span>
-                      <span className="text-gray-900 font-semibold">${paymentLinkData?.pricing?.toFixed(2) || '0.00'} USDC</span>
+                      <span className="text-gray-900 font-semibold">${paymentLinkData?.pricing?.toFixed(2) || '0.00'} {selectedToken}</span>
                     </div>
                   </div>
                 </div>
