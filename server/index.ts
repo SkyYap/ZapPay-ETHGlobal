@@ -154,20 +154,161 @@ app.use("/api/pay/*", async (c, next) => {
 // This blocks high-risk wallets before they can attempt to pay
 app.use("/api/pay/*", walletRiskMiddleware);
 
-// Configure x402 payment middleware
+// Configure x402 payment middleware for each network
+// This allows clients to choose which network to pay on by selecting the endpoint
+
+// Sepolia endpoints - USDC
 app.use(
   paymentMiddleware(
     payTo,
     {
-      // 24-hour session access
-      "/api/pay/session": {
+      "/api/pay/sepolia/usdc/session": {
         price: "$1.00",
-        network: primaryNetwork,
+        network: "sepolia",
       },
-      // One-time access/payment
-      "/api/pay/onetime": {
+      "/api/pay/sepolia/usdc/onetime": {
         price: "$0.10",
-        network: primaryNetwork,
+        network: "sepolia",
+      },
+    },
+    {
+      url: facilitatorUrl,
+    },
+  ),
+);
+
+// Sepolia endpoints - PYUSD
+app.use(
+  paymentMiddleware(
+    payTo,
+    {
+      "/api/pay/sepolia/pyusd/session": {
+        price: {
+          amount: "1000000", // 1 PYUSD in smallest units (6 decimals)
+          asset: {
+            address: "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9" as `0x${string}`,
+            decimals: 6,
+            eip712: {
+              name: "PayPal USD",
+              version: "1",
+            },
+          },
+        },
+        network: "sepolia",
+      },
+      "/api/pay/sepolia/pyusd/onetime": {
+        price: {
+          amount: "100000", // 0.1 PYUSD in smallest units
+          asset: {
+            address: "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9" as `0x${string}`,
+            decimals: 6,
+            eip712: {
+              name: "PayPal USD",
+              version: "1",
+            },
+          },
+        },
+        network: "sepolia",
+      },
+    },
+    {
+      url: facilitatorUrl,
+    },
+  ),
+);
+
+// Arbitrum Sepolia endpoints - USDC
+app.use(
+  paymentMiddleware(
+    payTo,
+    {
+      "/api/pay/arbitrum-sepolia/usdc/session": {
+        price: {
+          amount: "1000000", // 1 USDC in smallest units (6 decimals)
+          asset: {
+            address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d" as `0x${string}`,
+            decimals: 6,
+            eip712: {
+              name: "USD Coin",  // Correct EIP-712 name for Arbitrum Sepolia USDC
+              version: "2",
+            },
+          },
+        },
+        network: "arbitrum-sepolia",
+      },
+      "/api/pay/arbitrum-sepolia/usdc/onetime": {
+        price: {
+          amount: "100000", // 0.1 USDC in smallest units
+          asset: {
+            address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d" as `0x${string}`,
+            decimals: 6,
+            eip712: {
+              name: "USD Coin",  // Correct EIP-712 name for Arbitrum Sepolia USDC
+              version: "2",
+            },
+          },
+        },
+        network: "arbitrum-sepolia",
+      },
+    },
+    {
+      url: facilitatorUrl,
+    },
+  ),
+);
+
+// Arbitrum Sepolia endpoints - PYUSD
+app.use(
+  paymentMiddleware(
+    payTo,
+    {
+      "/api/pay/arbitrum-sepolia/pyusd/session": {
+        price: {
+          amount: "1000000", // 1 PYUSD in smallest units (6 decimals)
+          asset: {
+            address: "0x637A1259C6afd7E3AdF63993cA7E58BB438aB1B1" as `0x${string}`,
+            decimals: 6,
+            eip712: {
+              name: "PayPal USD",
+              version: "1",
+            },
+          },
+        },
+        network: "arbitrum-sepolia",
+      },
+      "/api/pay/arbitrum-sepolia/pyusd/onetime": {
+        price: {
+          amount: "100000", // 0.1 PYUSD in smallest units
+          asset: {
+            address: "0x637A1259C6afd7E3AdF63993cA7E58BB438aB1B1" as `0x${string}`,
+            decimals: 6,
+            eip712: {
+              name: "PayPal USD",
+              version: "1",
+            },
+          },
+        },
+        network: "arbitrum-sepolia",
+      },
+    },
+    {
+      url: facilitatorUrl,
+    },
+  ),
+);
+
+// Base Sepolia endpoints - USDC only
+app.use(
+  paymentMiddleware(
+    payTo,
+    {
+      "/api/pay/base-sepolia/usdc/session": {
+        price: "$1.00",
+        network: "base-sepolia",
+      },
+      "/api/pay/base-sepolia/usdc/onetime": {
+        price: "$0.10",
+        network: "base-sepolia",
       },
     },
     {
@@ -226,12 +367,26 @@ app.use("/*", async (c, next) => {
 app.get("/api/health", (c) => {
   return c.json({
     status: "ok",
-    message: "Server is running",
+    message: "Server is running with multi-network support",
     config: {
-      network: primaryNetwork,
+      supportedNetworks: networks,
       payTo,
       facilitator: facilitatorUrl,
       supportedTokens: ["USDC", "PYUSD"],
+    },
+    endpoints: {
+      sepolia: {
+        session: "/api/pay/sepolia/session",
+        onetime: "/api/pay/sepolia/onetime",
+      },
+      arbitrumSepolia: {
+        session: "/api/pay/arbitrum-sepolia/session",
+        onetime: "/api/pay/arbitrum-sepolia/onetime",
+      },
+      baseSepolia: {
+        session: "/api/pay/base-sepolia/session",
+        onetime: "/api/pay/base-sepolia/onetime",
+      },
     },
   });
 });
@@ -278,253 +433,61 @@ app.get("/api/payment-options", (c) => {
   });
 });
 
-// Paid endpoint - 24-hour session access ($1.00)
-app.post("/api/pay/session", async (c) => {
-  try {
-    const sessionId = uuidv4();
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+// POST handlers for payment endpoints (protected by payment middleware above)
+// These handlers execute AFTER payment is verified and settled
 
-    const session: Session = {
+// Helper function to create session response
+const createSessionResponse = (network: string, token: string) => {
+  const sessionId = uuidv4();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const session: Session = {
+    id: sessionId,
+    createdAt: now,
+    expiresAt,
+    type: "24hour",
+  };
+
+  sessions.set(sessionId, session);
+
+  return {
+    success: true,
+    sessionId,
+    message: `24-hour access granted on ${network} using ${token}!`,
+    session: {
       id: sessionId,
-      createdAt: now,
-      expiresAt,
       type: "24hour",
-    };
+      createdAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      validFor: "24 hours",
+    },
+  };
+};
 
-    sessions.set(sessionId, session);
-
-    // Record successful transaction
-    try {
-      const walletAddress = c.get('walletAddress') || c.req.header('x-402-address');
-
-      // Extract payment details including token and network
-      const paymentDetails = extractPaymentDetails(c);
-      const amount = paymentDetails.amount || 1.0;
-      const currency = paymentDetails.currency || 'USD';
-      const crypto_currency = paymentDetails.crypto_currency || 'USDC';
-      const network = paymentDetails.network;
-
-      // Try to extract payment_link from referrer
-      const paymentLinkHash = extractPaymentLinkFromContext(c);
-      let payment_link_id: string | undefined;
-      let owner_id: string | null = null;
-
-      if (paymentLinkHash) {
-        const linkData = await getPaymentLinkData(paymentLinkHash);
-        if (linkData) {
-          payment_link_id = linkData.id;
-          owner_id = linkData.owner_id;
-        }
-      }
-
-      // Fallback to system owner if no payment link found
-      if (!owner_id) {
-        owner_id = await getSystemOwnerId();
-      }
-
-      if (owner_id) {
-        await recordSuccessfulPayment({
-          owner_id,
-          payment_link_id,
-          amount,
-          currency,
-          crypto_amount: amount, // Set crypto_amount = amount
-          crypto_currency, // Actual token used (USDC or PYUSD)
-          wallet_address: walletAddress,
-          session_id: sessionId,
-        });
-      } else {
-        console.error('❌ Cannot record transaction: No valid owner_id found');
-      }
-    } catch (recordError: any) {
-      console.error('❌ Failed to record successful transaction:', recordError.message);
-      // Don't fail the payment if recording fails
-    }
-
-    return c.json({
-      success: true,
-      sessionId,
-      message: "24-hour access granted!",
-      session: {
-        id: sessionId,
-        type: "24hour",
-        createdAt: now.toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        validFor: "24 hours",
-      },
-    });
-  } catch (error: any) {
-    console.error('❌ Payment failed:', error);
-
-    // Record failed transaction
-    try {
-      const walletAddress = c.get('walletAddress') || c.req.header('x-402-address');
-
-      // Try to extract payment_link from referrer
-      const paymentLinkHash = extractPaymentLinkFromContext(c);
-      let payment_link_id: string | undefined;
-      let owner_id: string | null = null;
-
-      if (paymentLinkHash) {
-        const linkData = await getPaymentLinkData(paymentLinkHash);
-        if (linkData) {
-          payment_link_id = linkData.id;
-          owner_id = linkData.owner_id;
-        }
-      }
-
-      // Fallback to system owner if no payment link found
-      if (!owner_id) {
-        owner_id = await getSystemOwnerId();
-      }
-
-      if (owner_id) {
-        await recordFailedPayment({
-          owner_id,
-          payment_link_id,
-          amount: 1.0,
-          currency: 'USD',
-          crypto_amount: 1.0, // Set crypto_amount = amount
-          crypto_currency, // Actual token used (USDC or PYUSD)
-          wallet_address: walletAddress,
-          block_reason: error.message,
-        });
-      }
-    } catch (recordError) {
-      console.error('❌ Failed to record failed transaction:', recordError);
-    }
-
-    return c.json({
-      success: false,
-      error: 'Payment failed',
-      message: error.message,
-    }, 500);
-  }
+// Sepolia USDC session handler
+app.post("/api/pay/sepolia/usdc/session", async (c) => {
+  return c.json(createSessionResponse("Sepolia", "USDC"));
 });
 
-// Paid endpoint - one-time access/payment ($0.10)
-app.post("/api/pay/onetime", async (c) => {
-  try {
-    const sessionId = uuidv4();
-    const now = new Date();
+// Sepolia PYUSD session handler
+app.post("/api/pay/sepolia/pyusd/session", async (c) => {
+  return c.json(createSessionResponse("Sepolia", "PYUSD"));
+});
 
-    const session: Session = {
-      id: sessionId,
-      createdAt: now,
-      expiresAt: new Date(now.getTime() + 5 * 60 * 1000), // 5 minutes to use
-      type: "onetime",
-      used: false,
-    };
+// Arbitrum Sepolia USDC session handler
+app.post("/api/pay/arbitrum-sepolia/usdc/session", async (c) => {
+  return c.json(createSessionResponse("Arbitrum Sepolia", "USDC"));
+});
 
-    sessions.set(sessionId, session);
+// Arbitrum Sepolia PYUSD session handler
+app.post("/api/pay/arbitrum-sepolia/pyusd/session", async (c) => {
+  return c.json(createSessionResponse("Arbitrum Sepolia", "PYUSD"));
+});
 
-    // Record successful transaction
-    try {
-      const walletAddress = c.get('walletAddress') || c.req.header('x-402-address');
-
-      // Extract payment details including token and network
-      const paymentDetails = extractPaymentDetails(c);
-      const amount = paymentDetails.amount || 0.10;
-      const currency = paymentDetails.currency || 'USD';
-      const crypto_currency = paymentDetails.crypto_currency || 'USDC';
-      const network = paymentDetails.network;
-
-      // Try to extract payment_link from referrer
-      const paymentLinkHash = extractPaymentLinkFromContext(c);
-      let payment_link_id: string | undefined;
-      let owner_id: string | null = null;
-
-      if (paymentLinkHash) {
-        const linkData = await getPaymentLinkData(paymentLinkHash);
-        if (linkData) {
-          payment_link_id = linkData.id;
-          owner_id = linkData.owner_id;
-        }
-      }
-
-      // Fallback to system owner if no payment link found
-      if (!owner_id) {
-        owner_id = await getSystemOwnerId();
-      }
-
-      if (owner_id) {
-        await recordSuccessfulPayment({
-          owner_id,
-          payment_link_id,
-          amount,
-          currency,
-          crypto_amount: amount, // Set crypto_amount = amount
-          crypto_currency, // Actual token used (USDC or PYUSD)
-          wallet_address: walletAddress,
-          session_id: sessionId,
-        });
-      } else {
-        console.error('❌ Cannot record transaction: No valid owner_id found');
-      }
-    } catch (recordError: any) {
-      console.error('❌ Failed to record successful transaction:', recordError.message);
-      // Don't fail the payment if recording fails
-    }
-
-    return c.json({
-      success: true,
-      sessionId,
-      message: "One-time access granted!",
-      access: {
-        id: sessionId,
-        type: "onetime",
-        createdAt: now.toISOString(),
-        validFor: "5 minutes (single use)",
-      },
-    });
-  } catch (error: any) {
-    console.error('❌ Payment failed:', error);
-
-    // Record failed transaction
-    try {
-      const walletAddress = c.get('walletAddress') || c.req.header('x-402-address');
-
-      // Try to extract payment_link from referrer
-      const paymentLinkHash = extractPaymentLinkFromContext(c);
-      let payment_link_id: string | undefined;
-      let owner_id: string | null = null;
-
-      if (paymentLinkHash) {
-        const linkData = await getPaymentLinkData(paymentLinkHash);
-        if (linkData) {
-          payment_link_id = linkData.id;
-          owner_id = linkData.owner_id;
-        }
-      }
-
-      // Fallback to system owner if no payment link found
-      if (!owner_id) {
-        owner_id = await getSystemOwnerId();
-      }
-
-      if (owner_id) {
-        await recordFailedPayment({
-          owner_id,
-          payment_link_id,
-          amount: 0.10,
-          currency: 'USD',
-          crypto_amount: 0.10, // Set crypto_amount = amount
-          crypto_currency, // Actual token used (USDC or PYUSD)
-          wallet_address: walletAddress,
-          block_reason: error.message,
-        });
-      }
-    } catch (recordError) {
-      console.error('❌ Failed to record failed transaction:', recordError);
-    }
-
-    return c.json({
-      success: false,
-      error: 'Payment failed',
-      message: error.message,
-    }, 500);
-  }
+// Base Sepolia USDC session handler
+app.post("/api/pay/base-sepolia/usdc/session", async (c) => {
+  return c.json(createSessionResponse("Base Sepolia", "USDC"));
 });
 
 // Free endpoint - validate session
@@ -1010,20 +973,29 @@ app.get("/api/transactions", async (c) => {
 });
 
 console.log(`
-🚀 x402 Payment Template Server
+🚀 x402 Payment Template Server - Multi-Network Support
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💰 Accepting payments to: ${payTo}
-🔗 Active Network: ${primaryNetwork}
-${networks.length > 1 ? `📋 Configured Networks: ${networks.join(', ')}` : ''}
+🔗 Supported Networks: ${networks.join(', ')}
 🪙 Tokens: USDC & PYUSD
 🌐 Port: ${port}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 Payment Options:
-   - 24-Hour Session: $1.00
-   - One-Time Access: $0.10
+📋 Network-Specific Endpoints:
+
+   Sepolia (11155111):
+   - POST /api/pay/sepolia/session ($1.00)
+   - POST /api/pay/sepolia/onetime ($0.10)
+
+   Arbitrum Sepolia (421614):
+   - POST /api/pay/arbitrum-sepolia/session ($1.00)
+   - POST /api/pay/arbitrum-sepolia/onetime ($0.10)
+
+   Base Sepolia (84532):
+   - POST /api/pay/base-sepolia/session ($1.00)
+   - POST /api/pay/base-sepolia/onetime ($0.10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 Note: Currently using ${primaryNetwork}. To use other networks,
-   update NETWORK in .env to set your preferred primary network.
+💡 Clients can choose which network to pay on by calling
+   the appropriate endpoint for their connected network.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🛠️  This is a template! Customize it for your app.
 📚 Learn more: https://x402.org

@@ -75,6 +75,13 @@ export async function verify<
     name = paymentRequirements.extra?.name ?? config[chainId.toString()].usdcName;
     erc20Address = paymentRequirements.asset as Address;
     version = paymentRequirements.extra?.version ?? (await getVersion(client));
+    console.log("🔍 Facilitator EIP-712 params:", {
+      name,
+      version,
+      chainId,
+      verifyingContract: erc20Address,
+      extra: paymentRequirements.extra,
+    });
   } catch {
     return {
       isValid: false,

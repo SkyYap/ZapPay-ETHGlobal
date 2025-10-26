@@ -26,6 +26,21 @@ const NETWORK_NAMES: Record<SupportedChainKey, string> = {
   baseSepolia: 'Base Sepolia',
 };
 
+// Helper to convert network keys to API paths
+const getNetworkPath = (network: SupportedChainKey): string => {
+  const networkPaths: Record<SupportedChainKey, string> = {
+    sepolia: 'sepolia',
+    arbitrumSepolia: 'arbitrum-sepolia',
+    baseSepolia: 'base-sepolia',
+  };
+  return networkPaths[network];
+};
+
+// Helper to convert token symbol to API path
+const getTokenPath = (token: TokenSymbol): string => {
+  return token.toLowerCase();
+};
+
 // Base axios instance without payment interceptor
 const baseApiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -94,22 +109,26 @@ const api = {
     return response.data;
   },
 
-  // Paid endpoints
-  purchase24HourSession: async (paymentLink?: string) => {
+  // Paid endpoints - now supports multiple networks and tokens
+  purchase24HourSession: async (network: SupportedChainKey, token: TokenSymbol, paymentLink?: string) => {
     console.log("🔐 Premium Membership purchasing ...");
+    const networkPath = getNetworkPath(network);
+    const tokenPath = getTokenPath(token);
     const headers: any = {};
     if (paymentLink) {
       headers['X-Payment-Link'] = paymentLink;
       console.log("📝 Sending payment_link in header:", paymentLink);
     }
-    const response = await apiClient.post("/api/pay/session", {}, { headers });
+    const response = await apiClient.post(`/api/pay/${networkPath}/${tokenPath}/session`, {}, { headers });
     console.log("✅ Premium Membership purchased:", response.data);
     return response.data.session;
   },
 
-  purchaseOneTimeAccess: async () => {
+  purchaseOneTimeAccess: async (network: SupportedChainKey, token: TokenSymbol) => {
     console.log("⚡ Purchasing one-time access...");
-    const response = await apiClient.post("/api/pay/onetime");
+    const networkPath = getNetworkPath(network);
+    const tokenPath = getTokenPath(token);
+    const response = await apiClient.post(`/api/pay/${networkPath}/${tokenPath}/onetime`);
     console.log("✅ One-time access granted:", response.data);
     return response.data;
   },
@@ -214,15 +233,17 @@ export function ZapPayUI() {
     }
 
     setPaymentStatus('processing');
-    
+
     try {
       console.log("🚀 Starting payment process...");
       console.log("💳 Wallet connected:", address);
       console.log("🔗 Chain:", walletClient?.chain?.name);
       console.log("🌐 Network ID:", walletClient?.chain?.id);
-      
+      console.log("📡 Selected Network:", selectedNetwork);
+      console.log("🪙 Selected Token:", selectedToken);
+
       // Purchase 24-hour session (equivalent to the $1.00 payment)
-      const session = await api.purchase24HourSession(paymentLink);
+      const session = await api.purchase24HourSession(selectedNetwork, selectedToken, paymentLink);
       
       console.log("✅ Payment successful:", session);
       

@@ -92,11 +92,11 @@ export const config: Record<string, ChainConfig> = {
   },
   "421614": {
     usdcAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-    usdcName: "USDC",
+    usdcName: "USD Coin",
     tokens: [
       {
         address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d" as Address,
-        name: "USDC",
+        name: "USD Coin",
         symbol: "USDC",
       },
       {
